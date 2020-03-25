@@ -111,7 +111,7 @@ void app_main(void)
 			printf("entre al if\r\n");
 			puerta_abierta = 1;
 
-			xEventbits = xEventGroupGetBits( event_group );
+		/*	xEventbits = xEventGroupGetBits( event_group );
 			if( xEventbits != BEGIN_TASK3 )
 				{
 				printf("NO esta en el retraso 3 \r\n");
@@ -119,9 +119,31 @@ void app_main(void)
 			if( xEventbits == BEGIN_TASK3 )
 				{
 				printf("SI esta en el retraso 3 \r\n");
+			}*/
+
+			//la funcion retorna siempre ready incluso cuando se llama desde adentro de la tarea
+			switch (eTaskGetState(Retraso3)){
+			case 0:
+				printf("Esta corriendo\r\n");
+				vTaskDelay(200 / portTICK_PERIOD_MS);
+			break;
+			case 1:
+				printf("Esta ready\r\n");
+				vTaskDelay(200 / portTICK_PERIOD_MS);
+			break;
+			case 2:
+				printf("Esta block\r\n");
+				vTaskDelay(200 / portTICK_PERIOD_MS);
+			break;
+			case 3:
+				printf("Esta suspended\r\n");
+				vTaskDelay(200 / portTICK_PERIOD_MS);
+			break;
+			case 4:
+				printf("Esta deleted \r\n");
+				vTaskDelay(200 / portTICK_PERIOD_MS);
+			break;
 			}
-
-
 			vTaskDelay(200 / portTICK_PERIOD_MS);
 		}
 
