@@ -29,6 +29,14 @@ const int BEGIN_TASK2 = BIT1;
 const int BEGIN_TASK3 = BIT2;
 const int BEGIN_TASK4 = BIT3;
 
+const int SYNC_BIT_TASK1 = BIT4;
+const int SYNC_BIT_TASK2 = BIT5;
+/*  #define SYNC_BIT_TASK1      ( 1 << 4 )
+  #define SYNC_BIT_TASK2      ( 1 << 5 )
+
+  #define ALL_SYNC_BITS ( SYNC_BIT_TASK1 | SYNC_BIT_TASK2 )*/
+
+
 QueueHandle_t xQueue;
 
 
@@ -48,11 +56,13 @@ void Retraso1 (void *P){
 		xEventGroupWaitBits(event_group,BEGIN_TASK1,true,true,portMAX_DELAY);
 		printf("Esperare 4 s \r\n");
 		vTaskDelay(4000 / portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK1);
 		printf("Ya espere 4.1 \r\n");
+		xQueueReceive(xQueue,&c,100/portTICK_RATE_MS);
+		printf("c es: %d \r\n",c);
 		b++;
-		xQueueSendToFront(xQueue,&b,10/portTICK_PERIOD_MS);
+		xQueueSendToFront(xQueue,&b,portMAX_DELAY);
 		xEventGroupSetBits(event_group, BEGIN_TASK2);
+		xEventGroupSetBits(event_group, SYNC_BIT_TASK1);
 		printf("Ya espere 4.2 \r\n");
 	}
 
@@ -65,15 +75,14 @@ void Retraso2 (void *P){
 		xEventGroupWaitBits(event_group,BEGIN_TASK2,true,true,portMAX_DELAY);
 		printf("Esperare 5 s \r\n");
 		vTaskDelay(5000 / portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK2);
-		xQueueReceive(xQueue,&c,100/portTICK_RATE_MS);
+		xQueueReceive(xQueue,&c,portMAX_DELAY);
 		printf("c es %d\r\n",c);
 		b++;
 		printf("Esperare 5.1 \r\n");
-	//	xQueueSendToFront(xQueue,&b,10/portTICK_PERIOD_MS);
+		xQueueSendToFront(xQueue,&b,portMAX_DELAY);
 		printf("Ya espere 5.2 \r\n");
 		printf("Ya espere 5.3 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK3);
+		xEventGroupSetBits(event_group, SYNC_BIT_TASK2);
 	}
 
 }
@@ -82,36 +91,41 @@ void Retraso3 (void *P){
 
 	printf("Entre en retraso 3 \r\n");
 	for(;;){
-		xEventGroupWaitBits(event_group,BEGIN_TASK3,pdFALSE,true,portMAX_DELAY);
+		//Groupsyn setea el bit del segundo parametro y luego espera el tiempo desado por los bits que se
+		//seleccionen
+		xEventGroupSync(event_group,BEGIN_TASK1,0x30,portMAX_DELAY);
+	//	xEventGroupWaitBits(event_group,BEGIN_TASK3,true,true,portMAX_DELAY);
+		xEventGroupClearBits(event_group, BEGIN_TASK2);
+		xEventGroupClearBits(event_group, SYNC_BIT_TASK2);
+		xEventGroupClearBits(event_group, SYNC_BIT_TASK1);
 		printf("Esperare 6 s \r\n");
 		vTaskDelay(6000 / portTICK_PERIOD_MS);
-		xQueueReceive(xQueue,&c,0/portTICK_RATE_MS);
+		xQueueReceive(xQueue,&c,portMAX_DELAY);
 		printf("c es %d \r\n",c);
-		b++;
-		xQueueSendToFront(xQueue,&b,100/portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK3);
 		printf("Ya espere 6.1 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK1);
+		b++;
+		xQueueSendToFront(xQueue,&b,portMAX_DELAY);
+		xEventGroupSetBits(event_group, BEGIN_TASK4);
 		printf("Ya espere 6.2 \r\n");
 	}
 
 }
-/*
+
 void Retraso4 (void *P){
 
 	printf("Entre en retraso 4 \r\n");
 	for(;;){
-		xEventGroupWaitBits(event_group,BEGIN_TASK4,pdFALSE,true,portMAX_DELAY);
-		printf("Estoy en retraso 4 \r\n");
-		vTaskSuspend(NULL);
+		xEventGroupWaitBits(event_group,BEGIN_TASK4,true,true,portMAX_DELAY);
+		printf("Estoy en retraso 4-7 \r\n");
 		xEventGroupClearBits(event_group, BEGIN_TASK4);
-		printf("Ya espere 6.1 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK2);
-		printf("Ya espere 6.2 \r\n");
+		printf("Ya espere 5-7 \r\n");
+		vTaskDelay(7000 / portTICK_PERIOD_MS);
+		xEventGroupSetBits(event_group, BEGIN_TASK1);
+		printf("Ya espere 6-7 \r\n");
 	}
 
 }
-*/
+
 
 void app_main(void)
 {
@@ -131,15 +145,42 @@ void app_main(void)
 	xQueue = xQueueCreate( 5, sizeof( int32_t ) );
 	event_group = xEventGroupCreate();
 
+	if (xEventGroupGetBits(event_group) == 0x10){
+		printf("El grupo es 0x30 \r\n");
+	}
+
 
 	xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024*2, NULL, 8, NULL,0);
 	xTaskCreatePinnedToCore(&Retraso2, "Retraso2", 1024*2, NULL, 6, NULL,0);
 	xTaskCreatePinnedToCore(&Retraso3, "Retraso3", 1024*2, NULL, 4, NULL,0);
-//	xTaskCreatePinnedToCore(&Retraso4, "Retraso4", 1024, NULL, 10, NULL,0);
+
+	if (xEventGroupGetBits(event_group) == 0x10){
+		printf("El grupo es 0x30 \r\n");
+	}
+	xTaskCreatePinnedToCore(&Retraso4, "Retraso4", 1024, NULL, 10, NULL,0);
+
+	if (xEventGroupGetBits(event_group) == 0x10){
+		printf("El grupo es 0x30 \r\n");
+	}
+
+	if (xEventGroupGetBits(event_group) == 0x00){
+		printf("El grupo es 0x00 \r\n");
+	}
+
+	if (xEventGroupGetBits(event_group) == 0x10){
+		printf("El grupo es 0x30 \r\n");
+	}
 
 	printf("%d \r\n",a );
-	xEventGroupSetBits(event_group, BEGIN_TASK1);
+//	xEventGroupSetBits(event_group, BEGIN_TASK1);
 
+	if (xEventGroupGetBits(event_group) == 0x30){
+		printf("El grupo es 0x30 \r\n");
+
+	}
+	if (xEventGroupGetBits(event_group) == 0x10){
+		printf("El grupo es 0x30 \r\n");
+	}
 
 
 
