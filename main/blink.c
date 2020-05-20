@@ -123,6 +123,10 @@ void app_main(void)
 	Cola= xQueueCreate(1, sizeof(struct TRAMA));
 	Cola1= xQueueCreate(1, sizeof(struct TRAMA));
 
+	char message[318] = "Welcome to ESP32!";
+	const char* finalSMSComand = "\x1A";
+
+
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
     uart_config_t uart_config = {
@@ -190,11 +194,16 @@ void app_main(void)
         ESP_LOGW("HOLA","Mando CFUN");
         uart_write_bytes(UART_NUM_1,"AT+CFUN=1\r\n", 11);
         ESP_LOGW(TAG, "CFUN activo \r\n");
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
+
+
+
+
+
 
         //Para conectarse a la red de Movistar
         ESP_LOGW("HOLA","Mando CSTT");
-        uart_write_bytes(UART_NUM_1,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"", 43);
+        uart_write_bytes(UART_NUM_1,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"\r\n", 39);
         ESP_LOGW(TAG, "Conectandose a movistar \r\n");
 
         vTaskDelay(40000 / portTICK_PERIOD_MS);
@@ -203,6 +212,33 @@ void app_main(void)
 	    ESP_LOGW(TAG, "Mando Ciirc\r\n");
 		uart_write_bytes(UART_NUM_1,"AT+CIICR\r\n", 10);
 	    ESP_LOGW(TAG, "Ciirc activando \r\n");
+	    vTaskDelay(100000 / portTICK_PERIOD_MS);
+
+        //Para configurar el formato de los mensajes
+        uart_write_bytes(UART_NUM_1,"AT+CMGF=1\r\n", 11);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        ESP_LOGW(TAG, "Cmgf activo \r\n");
+
+        // Para pedir la ip asignada
+    	uart_write_bytes(UART_NUM_1,"AT+CIFSR\r\n", 10);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+        ESP_LOGW(TAG, "Pidiendo IP \r\n");
+
+        uart_write_bytes(UART_NUM_1,"AT+CMGS=\"+584242428865\"\r\n", 25);
+        ESP_LOGW(TAG, "Mensaje1 \r\n");
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+        sprintf(message,"Esta es una prueba \r\n");
+        uart_write_bytes(UART_NUM_1,message, 21);
+        uart_write_bytes(UART_NUM_1,(const char*)finalSMSComand, 2);
+        ESP_LOGW(TAG, "Mensaje2 \r\n");
+
+        ESP_LOGI(TAG, "Mande los mensajessssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss \r\n");
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+        // Apagar
+    	uart_write_bytes(UART_NUM_1,"AT+CPOWD=1\r\n", 12);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        ESP_LOGW(TAG, "Apagado \r\n");
 
 }
 
