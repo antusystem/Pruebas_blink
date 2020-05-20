@@ -49,35 +49,8 @@ void Retraso1 (void *P){
 
 }
 
-void Retraso2 (void *P){
 
-	printf("Entre en retraso 2 \r\n");
-	for(;;){
-		xEventGroupWaitBits(event_group,BEGIN_TASK2,true,true,portMAX_DELAY);
-		printf("Esperare 5 s \r\n");
-		vTaskDelay(5000 / portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK2);
-		printf("Ya espere 5.1 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK3);
-		printf("Ya espere 5.2 \r\n");
-	}
 
-}
-
-void Retraso3 (void *P){
-
-	printf("Entre en retraso 3 \r\n");
-	for(;;){
-		xEventGroupWaitBits(event_group,BEGIN_TASK3,pdFALSE,true,portMAX_DELAY);
-		printf("Esperare 6 s \r\n");
-		vTaskDelay(6000 / portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK3);
-		printf("Ya espere 6.1 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK1);
-		printf("Ya espere 6.2 \r\n");
-	}
-
-}
 
 
 void app_main(void)
@@ -92,58 +65,29 @@ void app_main(void)
 
 	a = 2;
 	printf("%d \r\n",a );
-	gpio_pad_select_gpio(GPIO_NUM_19);
-	gpio_set_direction(GPIO_NUM_19, GPIO_MODE_INPUT);
+	char b[37] = "";
+	sprintf(b,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"");
+	printf("%c",b[0]);
 
-	 event_group = xEventGroupCreate();
-
-
-	 xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
-	 xTaskCreatePinnedToCore(&Retraso2, "Retraso2", 1024, NULL, 6, NULL,0);
-	 xTaskCreatePinnedToCore(&Retraso3, "Retraso3", 1024, NULL, 4, NULL,0);
-
-	 printf("%d \r\n",a );
-	 xEventGroupSetBits(event_group, BEGIN_TASK1);
-
-	 while(1){
-
-		if (gpio_get_level(GPIO_NUM_19) == 1){
-			printf("entre al if\r\n");
-			puerta_abierta = 1;
-
-			xEventbits = xEventGroupGetBits( event_group );
-			if( xEventbits != BEGIN_TASK3 )
-				{
-				printf("NO esta en el retraso 3 \r\n");
-				}
-			if( xEventbits == BEGIN_TASK3 )
-				{
-				printf("SI esta en el retraso 3 \r\n");
-			}
-
-
-			vTaskDelay(200 / portTICK_PERIOD_MS);
-		}
-
-
-		vTaskDelay(200 / portTICK_PERIOD_MS);
-	}
+//	 xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
 
 
 
-//    gpio_pad_select_gpio(BLINK_GPIO);
-    /* Set the GPIO as a push/pull output */
-//    gpio_set_direction(BLINK_GPIO, GPIO_MODE_OUTPUT);
-//    while(1) {
+
+
+
+
+
+   while(1) {
         /* Blink off (output low) */
-//	printf("Turning off the LED\n");
-//        gpio_set_level(BLINK_GPIO, 0);
-//        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        /* Blink on (output high) */
-//	printf("Turning on the LED\n");
-//        gpio_set_level(BLINK_GPIO, 1);
-//        vTaskDelay(1000 / portTICK_PERIOD_MS);
- //   }
+	printf("%c \r\n",b[0]);
+
+       vTaskDelay(1000 / portTICK_PERIOD_MS);
+       printf("%c\r\n",b[1]);
+       printf("%s\r\n",b);
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
 
 
 }
