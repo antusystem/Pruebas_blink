@@ -4,12 +4,17 @@
 ***********************************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include "esp_types.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "freertos/queue.h"
 #include "driver/uart.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "driver/periph_ctrl.h"
+////////Include Project//////
+#include "Timer.h"
 
 static const char *TAG = "uart_events";
 
@@ -45,6 +50,69 @@ struct TRAMA{
 #define SIM800l_PWR_KEY (4)
 #define SIM800l_PWR (23)
 #define SIM800l_RST (5)
+
+
+
+QueueHandle_t xQueue1;
+
+////////Variable/////////////
+typedef struct {
+    int type;  // the type of timer's event
+    int timer_group;
+    int timer_idx;
+    uint64_t timer_counter_value;
+} timer_event_t;
+
+typedef enum
+{
+	CFUN = 0,
+	CSTT,
+    CIICR,
+	CMGF,
+	CIFSR,
+	CMGS,
+	CPOWD,
+} e_ATCOM;
+
+e_ATCOM ATCOM = 0;
+
+int a = 0;
+
+void IRAM_ATTR timer_group0_isr(void *para)
+{
+    timer_spinlock_take(TIMER_GROUP_0);
+    timer_pause(TIMER_GROUP_0, TIMER_0);
+    int timer_idx = (int) para;  //timer que origina la interrupcion
+    timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_0);
+    gpio_set_level(13,!gpio_get_level(2));
+    timer_group_enable_alarm_in_isr(TIMER_GROUP_0, TIMER_0);
+    timer_spinlock_give(TIMER_GROUP_0);
+    a = 3;
+    xQueueOverwriteFromISR(xQueue1, &a, pdFALSE);
+}
+
+void timer_config(int timer_idx, bool auto_reload, double timer_interval_sec)
+{
+    /* Select and initialize basic parameters of the timer */
+    timer_config_t config;
+    config.divider = TIMER_DIVIDER;
+    config.counter_dir = TIMER_COUNT_UP;
+    config.counter_en = TIMER_PAUSE;
+    config.alarm_en = TIMER_ALARM_EN;
+    config.intr_type = TIMER_INTR_LEVEL;
+    config.auto_reload = auto_reload;
+
+    timer_init(TIMER_GROUP_0, timer_idx, &config);
+
+    timer_set_counter_value(TIMER_GROUP_0, timer_idx, 0x00000000ULL);
+
+    /* Configure the alarm value and the interrupt on alarm. */
+    timer_set_alarm_value(TIMER_GROUP_0, timer_idx, timer_interval_sec * TIMER_SCALE);
+   // timer_set_alarm_value(TIMER_GROUP_0, timer_idx, timer_interval_sec*TIMER_SCALE_US);
+    timer_enable_intr(TIMER_GROUP_0, timer_idx);
+    timer_isr_register(TIMER_GROUP_0, timer_idx, timer_group0_isr,(void *) timer_idx, ESP_INTR_FLAG_IRAM, NULL);
+
+}
 
 
 static void uart_event_task(void *pvParameters)
@@ -168,6 +236,13 @@ void app_main(void)
     xTaskCreate(uart_event_task, "uart_event_task", 10*2048, NULL, 1, NULL);
     xTaskCreate(uart1_event_task, "uart1_event_task", 10*2048, NULL, 1, NULL);
 
+  	xQueue1 = xQueueCreate(1, sizeof(int));
+    gpio_pad_select_gpio(GPIO_NUM_13);
+    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_13, 0);
+
+
+
     /*Configurar inicio del SIM800l*/
     	/*Poner los pines como GPIO*/
     	gpio_pad_select_gpio(SIM800l_PWR_KEY);
@@ -188,21 +263,38 @@ void app_main(void)
 
 
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        ESP_LOGW("HOLA","Ya espere 5");
+        ESP_LOGW("HOLA","Ya espere 10");
+
+
+
+   /*	 timer_config(TIMER_0, WITH_RELOAD, TIMER_INTERVAL0_SEC);
+
+   	 timer_start(TIMER_GROUP_0, TIMER_0);
+
+   	 xQueueReceive(xQueue1,&b,portMAX_DELAY);*/
 
         // Se activan las funcionalidades
-        ESP_LOGW("HOLA","Mando CFUN");
+        ESP_LOGW(TAG,"Mando CFUN");
         uart_write_bytes(UART_NUM_1,"AT+CFUN=1\r\n", 11);
         ESP_LOGW(TAG, "CFUN activo \r\n");
         vTaskDelay(3000 / portTICK_PERIOD_MS);
+        int b = 0;
 
 
+        while (b = 0){
+
+        	switch(ATCOM){
+        	case 0:
+
+        	break;
+        	}
+        }
 
 
 
 
         //Para conectarse a la red de Movistar
-        ESP_LOGW("HOLA","Mando CSTT");
+        ESP_LOGW(TAG,"Mando CSTT");
         uart_write_bytes(UART_NUM_1,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"\r\n", 39);
         ESP_LOGW(TAG, "Conectandose a movistar \r\n");
 
@@ -241,5 +333,12 @@ void app_main(void)
         ESP_LOGW(TAG, "Apagado \r\n");
 
 }
+
+
+
+
+
+
+
 
 
