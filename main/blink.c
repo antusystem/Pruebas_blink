@@ -31,17 +31,6 @@ const int BEGIN_TASK2 = BIT1;
 
 const int BEGIN_TASK3 = BIT2;
 
-typedef struct {
-    uint16_t t_CFUN;
-    uint16_t t_CSST;
-    uint16_t t_CIICR;
-    uint16_t t_CGREG;
-    uint16_t t_CMGF;
-    uint16_t t_CIFSR;
-    uint16_t t_CPAS;
-    uint16_t t_CMGS;
-    uint16_t t_CPOWD;
-} T_Espera_t;
 
 typedef enum {
     t_CFUN = 12000,
@@ -126,9 +115,17 @@ void app_main(void)
 
 	portTickType b = 5000;
 	 event_group = xEventGroupCreate();
-	 sprintf(aux,"Hola");
+
 
 // xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
+
+      char* ip = strstr(aux,'.');
+      sprintf(aux,"Hola");
+      printf("ip es %s \r\n",ip);
+      sprintf(aux,"Hola1");
+      if (strncmp(ip,"NULL",4) != 0){
+    	  printf("Entre al if \r\n");
+     }
 
 
 	 printf("%d \r\n",a );
@@ -140,6 +137,8 @@ void app_main(void)
 	 printf("Aca 2 \r\n");
 	 xQueueOverwrite(xQueue,&aux);
 	 printf("Aca 3 \r\n");
+
+
 
 
 
