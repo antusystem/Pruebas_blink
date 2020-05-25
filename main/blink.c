@@ -43,6 +43,18 @@ typedef struct {
     uint16_t t_CPOWD;
 } T_Espera_t;
 
+typedef enum {
+    t_CFUN = 12000,
+    t_CSST = 30000,
+    t_CIICR = 130000,
+    t_CGREG = 5000,
+    t_CMGF = 12000,
+    t_CIFSR = 5000,
+    t_CPAS = 5000,
+    t_CMGS = 60000,
+    t_CPOWD = 5000,
+} e_TEspera;
+
 
 
 int a = 0;
@@ -95,7 +107,18 @@ void app_main(void)
        Technical Reference for a list of pads and their default
        functions.)
     */
-	T_Espera_t T_espera;
+	e_TEspera espera;
+
+	printf("%d \r\n",t_CFUN);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	printf("%d \r\n",t_CSST);
+
+	printf("%d \r\n",t_CIICR);
+
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	printf("%d \r\n",t_CIICR);
+
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	char aux[318] = "";
 	xQueue = xQueueCreate(1, sizeof(aux));
 	a = 2;
@@ -104,7 +127,6 @@ void app_main(void)
 	portTickType b = 5000;
 	 event_group = xEventGroupCreate();
 	 sprintf(aux,"Hola");
-	 T_espera.t_CGREG = 10000;
 
 // xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
 
@@ -112,7 +134,7 @@ void app_main(void)
 	 printf("%d \r\n",a );
 //	 xEventGroupSetBits(event_group, BEGIN_TASK1);
 	 printf("Aca 0\r\n" );
-	 Prueba(aux,T_espera.t_CGREG);
+	 Prueba(aux,t_CPAS);
 	 printf("Aca 1\r\n" );
 	 vTaskDelay(4000 / portTICK_PERIOD_MS);
 	 printf("Aca 2 \r\n");
