@@ -79,18 +79,17 @@ typedef enum
 } e_ATCOM;
 
 
-/*
-typedef struct {
-	portTickType t_CFUN = 12000;
-	portTickType t_CSTT = 30000;
-	portTickType t_CIICR = 130000;
-	portTickType t_CGREG = 5000;
-	portTickType t_CMGF = 12000;
-	portTickType t_CIFSR = 5000;
-	portTickType t_CPAS = 5000;
-	portTickType t_CMGS = 60000;
-	portTickType t_CPOWD = 5000;
-} T_Espera_t;*/
+typedef enum {
+    t_CFUN = 12000,
+    t_CSST = 30000,
+    t_CIICR = 130000,
+    t_CGREG = 5000,
+    t_CMGF = 12000,
+    t_CIFSR = 5000,
+    t_CPAS = 5000,
+    t_CMGS = 60000,
+    t_CPOWD = 5000,
+} e_TEspera;
 
 int a = 0;
 
@@ -217,9 +216,6 @@ static void  Tiempo_Espera(char* aux, uint8_t estado, portTickType tiempo)
     } else {
     	printf("%d- Espere %d y nada",estado,(int) tiempo);
     }
-
-
-
 }
 
 static void At_com(void *pvParameters){
@@ -230,16 +226,8 @@ static void At_com(void *pvParameters){
 	const char* finalSMSComand = "\x1A";
 	char aux[BUF_SIZE] = "";
 	e_ATCOM ATCOM = 0;
-//	T_Espera_t T_espera;
-	portTickType t_CFUN = 12000;
-	portTickType t_CSTT = 30000;
-	portTickType t_CIICR = 130000;
-	portTickType t_CGREG = 5000;
-	portTickType t_CMGF = 12000;
-	portTickType t_CIFSR = 5000;
-	portTickType t_CPAS = 5000;
-	portTickType t_CMGS = 60000;
-	portTickType t_CPOWD = 5000;
+	e_TEspera T_Espera;
+
 
 	while(1){
 
@@ -252,7 +240,7 @@ static void At_com(void *pvParameters){
                 uart_write_bytes(UART_NUM_1,"AT+CFUN=1\r\n", 11);
                 ESP_LOGW(TAG, "CFUN activo \r\n");
                 vTaskDelay(500 / portTICK_PERIOD_MS);
-                Tiempo_Espera(aux, ATCOM,t_CFUN);
+                Tiempo_Espera(aux, ATCOM,T_Espera.t_CFUN);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
@@ -387,8 +375,6 @@ static void At_com(void *pvParameters){
 
 
 
-
-
 void app_main(void)
 {
 
@@ -396,6 +382,7 @@ void app_main(void)
 	Cola1= xQueueCreate(1, sizeof(struct TRAMA));
 	Datos_uart1 = xQueueCreate(1, sizeof(struct TRAMA));
 	uart_event_t event_uart1;
+
 
 
 
