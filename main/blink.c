@@ -69,8 +69,10 @@ typedef enum
 	CFUN = 0,
 	CSTT,
     CIICR,
+	CGREG,
 	CMGF,
 	CIFSR,
+	CPAS,
 	CMGS1,
 	CMGS,
 /*	CPOWD,*/
@@ -199,7 +201,6 @@ static void At_com(void *pvParameters){
 
 	while(1){
 
-
         while (b == 0){
 
         	switch(ATCOM){
@@ -217,6 +218,8 @@ static void At_com(void *pvParameters){
                        if(strncmp(aux,"\r\nOK",4) == 0){
                     	   ATCOM++;
                     	   ESP_LOGW(TAG,"Aumentando ATCOM");
+                       }else if(strncmp(aux,"\r\nCME ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
+                    	   ESP_LOGE(TAG,"1- Dio Error");
                        }
                  }else{
                 	 ESP_LOGW(TAG,"1- Espere 10 segundos y no llego nada");
@@ -225,10 +228,10 @@ static void At_com(void *pvParameters){
                 bzero(aux, RD_BUF_SIZE);
         	break;
         	case CSTT:
-        		vTaskDelay(1000 / portTICK_PERIOD_MS);
                 //Para conectarse a la red de Movistar
                 ESP_LOGW(TAG,"Mando CSTT");
                 uart_write_bytes(UART_NUM_1,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"\r\n", 39);
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
                 ESP_LOGW(TAG, "Conectandose a movistar \r\n");
                 if(xQueueReceive(Datos_uart1, &tx_buf, (portTickType) 30000 / portTICK_PERIOD_MS)) {
                 	memcpy(aux,tx_buf.dato,BUF_SIZE);
@@ -238,6 +241,8 @@ static void At_com(void *pvParameters){
                 		ATCOM++;
                 		ESP_LOGW(TAG,"Aumentando ATCOM");
                  		vTaskDelay(10000 / portTICK_PERIOD_MS);
+                	} else if(strncmp(aux,"\r\nERROR",7) == 0 ){
+                		ESP_LOGE(TAG,"2- Dio error");
                 	}
                 }else{
                 	ESP_LOGW(TAG,"2- Espere 30 segundos y no llego nada");
@@ -256,10 +261,31 @@ static void At_com(void *pvParameters){
                 	if(strncmp(aux,"\r\nOK",4) == 0){
                 		ATCOM++;
                 		ESP_LOGW(TAG,"Aumentando ATCOM");
-                		vTaskDelay(10000 / portTICK_PERIOD_MS);
+                		vTaskDelay(3000 / portTICK_PERIOD_MS);
+                	}else if(strncmp(aux,"\r\n+PDP: DEACT",7) == 0 || strncmp(aux,"\r\nERROR",7) == 0 ){
+                		ESP_LOGE(TAG,"3- Dio error");
                 	}
                 }else{
                 	ESP_LOGW(TAG,"3- Espere 85 segundos y no llego nada");
+                }
+                bzero(tx_buf.dato, RD_BUF_SIZE);
+        	break;
+        	case CGREG:
+        		//Verificando que este conectado al GPRS
+        		ESP_LOGW(TAG, "Mando CGREG\r\n");
+        		uart_write_bytes(UART_NUM_1,"AT+CGREG?\r\n", 11);
+                if(xQueueReceive(Datos_uart1, &tx_buf, (portTickType) 10000 / portTICK_PERIOD_MS)) {
+                	memcpy(aux,tx_buf.dato,BUF_SIZE);
+                	ESP_LOGW(TAG,"Size es: %d",tx_buf.size);
+                	ESP_LOGW(TAG,"aux es: %s",tx_buf.dato);
+                	if(strncmp(aux,"\r\n+CGREG: 0,1",13) == 0){
+                		ATCOM++;
+                		ESP_LOGW(TAG,"Aumentando ATCOM");
+                    }else if(strncmp(aux,"\r\nCME ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
+                 	   ESP_LOGE(TAG,"4- Dio Error");
+                    }
+                }else{
+                	ESP_LOGW(TAG,"4- Espere 10 segundos y no llego nada");
                 }
                 bzero(tx_buf.dato, RD_BUF_SIZE);
         	break;
@@ -275,9 +301,11 @@ static void At_com(void *pvParameters){
                        if(strncmp(aux,"\r\nOK",4) == 0){
                     	   ATCOM++;
                     	   ESP_LOGW(TAG,"Aumentando ATCOM");
+                       }else if(strncmp(aux,"\r\nERROR",7) == 0){
+                    	   ESP_LOGE(TAG,"5- Dio Error");
                        }
                  }else{
-                	 ESP_LOGW(TAG,"1- Espere 10 segundos y no llego nada");
+                	 ESP_LOGW(TAG,"5- Espere 10 segundos y no llego nada");
                  }
                 bzero(tx_buf.dato, RD_BUF_SIZE);
         	break;
@@ -294,14 +322,31 @@ static void At_com(void *pvParameters){
                 		ESP_LOGW(TAG,"Aumentando ATCOM");
                 	}
                 }else{
-                	ESP_LOGW(TAG,"5- Espere 10 segundos y no llego nada");
+                	ESP_LOGW(TAG,"6- Espere 10 segundos y no llego nada");
                 }
                 bzero(tx_buf.dato, RD_BUF_SIZE);
              break;
+        	case CPAS:
+        		// Verificar que se encuentra conectado a la radio base
+        		uart_write_bytes(UART_NUM_1,"AT+CPAS\r\n", 9);
+ 		        ESP_LOGW(TAG, "Mande CPAS \r\n");
+                if(xQueueReceive(Datos_uart1, &tx_buf, (portTickType) 10000 / portTICK_PERIOD_MS)) {
+                	memcpy(aux,tx_buf.dato,BUF_SIZE);
+                	ESP_LOGW(TAG,"Size es: %d",tx_buf.size);
+                	ESP_LOGW(TAG,"aux es: %s",tx_buf.dato);
+                	if(strncmp(aux,"\r\n+CPAS: 0",10) == 0){
+                		ATCOM++;
+                		ESP_LOGW(TAG,"Aumentando ATCOM");
+                	}
+                }else{
+                	ESP_LOGW(TAG,"7- Espere 10 segundos y no llego nada");
+                }
+                bzero(tx_buf.dato, RD_BUF_SIZE);
+
+        	break;
         	case CMGS1:
         		//Para mandar el mensaje
                 ESP_LOGW(TAG, "Mensaje1 \r\n");
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
                 uart_write_bytes(UART_NUM_1,"AT+CMGS=\"+584242428865\"\r\n", 25);
                 if(xQueueReceive(Datos_uart1, &tx_buf, (portTickType) 60000 / portTICK_PERIOD_MS)) {
                    //   bzero(tx_buf.dato, RD_BUF_SIZE);
@@ -316,7 +361,7 @@ static void At_com(void *pvParameters){
                      	   ESP_LOGW(TAG,"Aumentando ATCOM");
                         }
                   }else{
-                 	 ESP_LOGW(TAG,"6- Espere 60 segundos y no llego nada");
+                 	 ESP_LOGW(TAG,"8- Espere 60 segundos y no llego nada");
                   }
                  bzero(tx_buf.dato, RD_BUF_SIZE);
         	break;
@@ -333,7 +378,7 @@ static void At_com(void *pvParameters){
                      	   ESP_LOGW(TAG,"Aumentando ATCOM");
                         }
                   }else{
-                 	 ESP_LOGW(TAG,"7- Espere 60 segundos y no llego nada");
+                 	 ESP_LOGW(TAG,"9- Espere 60 segundos y no llego nada");
                   }
                  bzero(tx_buf.dato, RD_BUF_SIZE);
             break;
