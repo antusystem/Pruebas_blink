@@ -11,13 +11,17 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "freertos/queue.h"
 
 /* Can use project configuration menu (idf.py menuconfig) to choose the GPIO to blink,
    or you can edit the following line and set a number here.
 */
 #define BLINK_GPIO CONFIG_BLINK_GPIO
+#define BUF_SIZE 													1024
 
 static EventGroupHandle_t event_group;
+
+QueueHandle_t xQueue;
 
 EventBits_t xEventbits;
 
@@ -49,35 +53,25 @@ void Retraso1 (void *P){
 
 }
 
-void Retraso2 (void *P){
+static void  Prueba(char* aux, portTickType tiempo)
+{
+	printf("Entre en la funcion");
 
-	printf("Entre en retraso 2 \r\n");
-	for(;;){
-		xEventGroupWaitBits(event_group,BEGIN_TASK2,true,true,portMAX_DELAY);
-		printf("Esperare 5 s \r\n");
-		vTaskDelay(5000 / portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK2);
-		printf("Ya espere 5.1 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK3);
-		printf("Ya espere 5.2 \r\n");
-	}
+    if(xQueueReceive(xQueue, &aux, (portTickType) tiempo / portTICK_PERIOD_MS)) {
 
-}
+    	printf("Estoy en la tarea");
+    } else {
+    	printf("Espere 5 y nada");
+    }
 
-void Retraso3 (void *P){
 
-	printf("Entre en retraso 3 \r\n");
-	for(;;){
-		xEventGroupWaitBits(event_group,BEGIN_TASK3,pdFALSE,true,portMAX_DELAY);
-		printf("Esperare 6 s \r\n");
-		vTaskDelay(6000 / portTICK_PERIOD_MS);
-		xEventGroupClearBits(event_group, BEGIN_TASK3);
-		printf("Ya espere 6.1 \r\n");
-		xEventGroupSetBits(event_group, BEGIN_TASK1);
-		printf("Ya espere 6.2 \r\n");
-	}
 
 }
+
+
+
+
+
 
 
 void app_main(void)
@@ -89,45 +83,27 @@ void app_main(void)
        Technical Reference for a list of pads and their default
        functions.)
     */
-
+	char aux[318] = "";
+	xQueue = xQueueCreate(1, sizeof(aux));
 	a = 2;
 	printf("%d \r\n",a );
-	gpio_pad_select_gpio(GPIO_NUM_19);
-	gpio_set_direction(GPIO_NUM_19, GPIO_MODE_INPUT);
 
+	portTickType b = 5000;
 	 event_group = xEventGroupCreate();
+	 sprintf(aux,"Hola");
 
+// xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
 
-	 xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
-	 xTaskCreatePinnedToCore(&Retraso2, "Retraso2", 1024, NULL, 6, NULL,0);
-	 xTaskCreatePinnedToCore(&Retraso3, "Retraso3", 1024, NULL, 4, NULL,0);
 
 	 printf("%d \r\n",a );
-	 xEventGroupSetBits(event_group, BEGIN_TASK1);
-
-	 while(1){
-
-		if (gpio_get_level(GPIO_NUM_19) == 1){
-			printf("entre al if\r\n");
-			puerta_abierta = 1;
-
-			xEventbits = xEventGroupGetBits( event_group );
-			if( xEventbits != BEGIN_TASK3 )
-				{
-				printf("NO esta en el retraso 3 \r\n");
-				}
-			if( xEventbits == BEGIN_TASK3 )
-				{
-				printf("SI esta en el retraso 3 \r\n");
-			}
-
-
-			vTaskDelay(200 / portTICK_PERIOD_MS);
-		}
-
-
-		vTaskDelay(200 / portTICK_PERIOD_MS);
-	}
+//	 xEventGroupSetBits(event_group, BEGIN_TASK1);
+	 printf("Aca 0\r\n" );
+	 Prueba(aux,b);
+	 printf("Aca 1\r\n" );
+	 vTaskDelay(4000 / portTICK_PERIOD_MS);
+	 printf("Aca 2 \r\n");
+	 xQueueOverwrite(xQueue,&aux);
+	 printf("Aca 3 \r\n");
 
 
 
