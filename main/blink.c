@@ -320,7 +320,9 @@ static void At_com(void *pvParameters){
                 	if(tx_buf.size >= 17){
                 		ATCOM++;
                 		ESP_LOGW(TAG,"Aumentando ATCOM");
-                	}
+                    }else if(strncmp(aux,"\r\nERROR",7) == 0){
+                 	   ESP_LOGE(TAG,"6- Dio Error");
+                    }
                 }else{
                 	ESP_LOGW(TAG,"6- Espere 10 segundos y no llego nada");
                 }
