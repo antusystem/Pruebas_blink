@@ -78,7 +78,7 @@ typedef enum
 /*	CPOWD,*/
 } e_ATCOM;
 
-
+//Enum para asignar los tiempos de espera para cada comando AT
 typedef enum {
     t_CFUN = 12000,
     t_CSST = 30000,
@@ -202,15 +202,13 @@ static void task3(void *pvParameters){
 	    vTaskDelete(NULL);
 }
 
-static void  Tiempo_Espera(char* aux, uint8_t estado, portTickType tiempo)
+static void  Tiempo_Espera(char* aux, uint8_t estado, uint16_t* tamano, portTickType tiempo)
 {
 
 	struct TRAMA buf;
-	printf("Entre en la funcion");
-
-
     if(xQueueReceive(Datos_uart1, &buf, (portTickType) tiempo / portTICK_PERIOD_MS)) {
         memcpy(aux,buf.dato,BUF_SIZE);
+        *tamano = buf.size;
         ESP_LOGW(TAG,"Size es: %d",buf.size);
         ESP_LOGW(TAG,"aux es: %s",buf.dato);
     } else {
@@ -221,10 +219,10 @@ static void  Tiempo_Espera(char* aux, uint8_t estado, portTickType tiempo)
 static void At_com(void *pvParameters){
 
 	int b = 0;
-    struct TRAMA tx_buf;
 	char message[318] = "Welcome to ESP32!";
 	const char* finalSMSComand = "\x1A";
 	char aux[BUF_SIZE] = "";
+	uint16_t size = 0;
 	e_ATCOM ATCOM = 0;
 	e_TEspera T_Espera;
 
@@ -240,7 +238,7 @@ static void At_com(void *pvParameters){
                 uart_write_bytes(UART_NUM_1,"AT+CFUN=1\r\n", 11);
                 ESP_LOGW(TAG, "CFUN activo \r\n");
                 vTaskDelay(500 / portTICK_PERIOD_MS);
-                Tiempo_Espera(aux, ATCOM,T_Espera.t_CFUN);
+                Tiempo_Espera(aux, ATCOM,&size,t_CFUN);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
@@ -248,6 +246,7 @@ static void At_com(void *pvParameters){
                 	ESP_LOGE(TAG,"1- Dio Error");
                 }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CSTT:
                 //Para conectarse a la red de Movistar
@@ -255,7 +254,7 @@ static void At_com(void *pvParameters){
                 uart_write_bytes(UART_NUM_1,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"\r\n", 39);
                 vTaskDelay(2000 / portTICK_PERIOD_MS);
                 ESP_LOGW(TAG, "Conectandose a movistar \r\n");
-                Tiempo_Espera(aux, ATCOM,t_CSTT);
+                Tiempo_Espera(aux, ATCOM,&size,t_CSST);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
@@ -264,13 +263,14 @@ static void At_com(void *pvParameters){
                 	ESP_LOGE(TAG,"2- Dio error");
                 }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CIICR:
                 // Para activar la conexion inalambrica por GPRS
         	    ESP_LOGW(TAG, "Mando Ciirc\r\n");
         		uart_write_bytes(UART_NUM_1,"AT+CIICR\r\n", 10);
         	    ESP_LOGW(TAG, "Ciirc activando \r\n");
-        	    Tiempo_Espera(aux, ATCOM,t_CIICR);
+        	    Tiempo_Espera(aux, ATCOM,&size,t_CIICR);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
@@ -279,12 +279,13 @@ static void At_com(void *pvParameters){
                 	ESP_LOGE(TAG,"3- Dio error");
                 }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CGREG:
         		//Verificando que este conectado al GPRS
         		ESP_LOGW(TAG, "Mando CGREG\r\n");
         		uart_write_bytes(UART_NUM_1,"AT+CGREG?\r\n", 11);
-        		Tiempo_Espera(aux, ATCOM,t_CGREG);
+        		Tiempo_Espera(aux, ATCOM,&size,t_CGREG);
                 if(strncmp(aux,"\r\n+CGREG: 0,1",13) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
@@ -292,12 +293,13 @@ static void At_com(void *pvParameters){
                 	ESP_LOGE(TAG,"4- Dio Error");
                 }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CMGF:
                 //Para configurar el formato de los mensajes
                 uart_write_bytes(UART_NUM_1,"AT+CMGF=1\r\n", 11);
                 ESP_LOGW(TAG, "Cmgf activo \r\n");
-                Tiempo_Espera(aux, ATCOM,t_CMGF);
+                Tiempo_Espera(aux, ATCOM,&size,t_CMGF);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                     ESP_LOGW(TAG,"Aumentando ATCOM");
@@ -305,38 +307,41 @@ static void At_com(void *pvParameters){
                 	ESP_LOGE(TAG,"5- Dio Error");
                 }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CIFSR:
  		       // Para pedir la ip asignada
  		    	uart_write_bytes(UART_NUM_1,"AT+CIFSR\r\n", 10);
  		        ESP_LOGW(TAG, "Pidiendo IP \r\n");
- 		        Tiempo_Espera(aux, ATCOM,t_CSTT);
- 		       vTaskDelay(4000 / portTICK_PERIOD_MS);
- 		      ATCOM++;
-         /*       if(tx_buf.size >= 17){
-                	ATCOM++;
+ 		        Tiempo_Espera(aux, ATCOM,&size,t_CIFSR);
+ 		        char* ip = strstr(aux,'.');
+ 		        printf("ip es %s \r\n",ip);
+ 		        if (strncmp(ip,"NULL",4) != 0){
+ 			        ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
                 }else if(strncmp(aux,"\r\nERROR",7) == 0){
                 	ESP_LOGE(TAG,"6- Dio Error");
-                }*/
+                }
                 bzero(aux, BUF_SIZE);
+                size = 0;
              break;
         	 case CPAS:
         		// Verificar que se encuentra conectado a la radio base
         		uart_write_bytes(UART_NUM_1,"AT+CPAS\r\n", 9);
  		        ESP_LOGW(TAG, "Mande CPAS \r\n");
- 		        Tiempo_Espera(aux, ATCOM,t_CPAS);
+ 		        Tiempo_Espera(aux, ATCOM,&size,t_CPAS);
                 if(strncmp(aux,"\r\n+CPAS: 0",10) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
                 }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CMGS1:
         		//Para mandar el mensaje
                 ESP_LOGW(TAG, "Mensaje1 \r\n");
                 uart_write_bytes(UART_NUM_1,"AT+CMGS=\"+584242428865\"\r\n", 25);
-                Tiempo_Espera(aux, ATCOM,t_CSTT);
+                Tiempo_Espera(aux, ATCOM,&size,t_CMGS);
                 if(strncmp(aux,"\r\n>",3) == 0){
                 	sprintf(message,"Esta es una prueba \r\n Hola");
                     uart_write_bytes(UART_NUM_1,message, 26);
@@ -345,16 +350,18 @@ static void At_com(void *pvParameters){
                     ESP_LOGW(TAG,"Aumentando ATCOM");
                  }
                 bzero(aux, BUF_SIZE);
+                size = 0;
         	break;
         	case CMGS:
         		//Para mandar el mensaje
                 ESP_LOGW(TAG, "Mensaje2 \r\n");
-                Tiempo_Espera(aux, ATCOM,t_CMGS);
+                Tiempo_Espera(aux, ATCOM,&size,t_CMGS);
                 if(strncmp(aux,"\r\n+CMGS:",8) == 0){
                 		ATCOM++;
                      	ESP_LOGW(TAG,"Aumentando ATCOM");
                  }
                 bzero(aux, BUF_SIZE);
+                size = 0;
             break;
         	}
 
