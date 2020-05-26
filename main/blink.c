@@ -37,9 +37,7 @@ static const char *TAG = "uart_events";
 #define PATTERN_CHR_NUM    											3        /*!< Set the number of consecutive and identical characters received by receiver which defines a UART pattern*/
 #define BUF_SIZE 													1024
 #define RD_BUF_SIZE 												BUF_SIZE
-static QueueHandle_t uart0_queue;
 static QueueHandle_t uart1_queue;
-static QueueHandle_t Cola;
 static QueueHandle_t Cola1;
 static QueueHandle_t Datos_uart1;
 
@@ -51,7 +49,6 @@ struct TRAMA{
 #define SIM800l_PWR_KEY (4)
 #define SIM800l_PWR (23)
 #define SIM800l_RST (5)
-
 
 
 QueueHandle_t xQueue1;
@@ -75,7 +72,7 @@ typedef enum
 	CPAS,
 	CMGS1,
 	CMGS,
-/*	CPOWD,*/
+	CPOWD,
 } e_ATCOM;
 
 //Enum para asignar los tiempos de espera para cada comando AT
@@ -91,70 +88,7 @@ typedef enum {
     t_CPOWD = 5000,
 } e_TEspera;
 
-int a = 0;
 
-void IRAM_ATTR timer_group0_isr(void *para)
-{
-    timer_spinlock_take(TIMER_GROUP_0);
-    timer_pause(TIMER_GROUP_0, TIMER_0);
-    int timer_idx = (int) para;  //timer que origina la interrupcion
-    timer_group_clr_intr_status_in_isr(TIMER_GROUP_0, TIMER_0);
-    gpio_set_level(13,!gpio_get_level(2));
-    timer_group_enable_alarm_in_isr(TIMER_GROUP_0, TIMER_0);
-    timer_spinlock_give(TIMER_GROUP_0);
-    a = 3;
-    xQueueOverwriteFromISR(xQueue1, &a, pdFALSE);
-}
-
-void timer_config(int timer_idx, bool auto_reload, double timer_interval_sec)
-{
-    /* Select and initialize basic parameters of the timer */
-    timer_config_t config;
-    config.divider = TIMER_DIVIDER;
-    config.counter_dir = TIMER_COUNT_UP;
-    config.counter_en = TIMER_PAUSE;
-    config.alarm_en = TIMER_ALARM_EN;
-    config.intr_type = TIMER_INTR_LEVEL;
-    config.auto_reload = auto_reload;
-
-    timer_init(TIMER_GROUP_0, timer_idx, &config);
-
-    timer_set_counter_value(TIMER_GROUP_0, timer_idx, 0x00000000ULL);
-
-    /* Configure the alarm value and the interrupt on alarm. */
-    timer_set_alarm_value(TIMER_GROUP_0, timer_idx, timer_interval_sec * TIMER_SCALE);
-   // timer_set_alarm_value(TIMER_GROUP_0, timer_idx, timer_interval_sec*TIMER_SCALE_US);
-    timer_enable_intr(TIMER_GROUP_0, timer_idx);
-    timer_isr_register(TIMER_GROUP_0, timer_idx, timer_group0_isr,(void *) timer_idx, ESP_INTR_FLAG_IRAM, NULL);
-
-}
-
-
-static void uart_event_task(void *pvParameters)
-{
-   uart_event_t event;
-   struct TRAMA TX;
-
-    for(;;) {
-
-       if(xQueueReceive(uart0_queue, (void * )&event, (portTickType)portMAX_DELAY)) {
-            bzero(TX.dato, RD_BUF_SIZE);
-
-            switch(event.type) {
-                case UART_DATA:
-
-                    TX.size=(uint16_t)event.size;
-                    uart_read_bytes(EX_UART_NUM, TX.dato, TX.size, portMAX_DELAY);
-                    xQueueSend(Cola,&TX,0/portTICK_RATE_MS);
-                    break;
-                default:
-                    ESP_LOGI(TAG, "uart event type: %d", event.type);
-                    break;
-            }
-        }
-    }
-    vTaskDelete(NULL);
-}
 
 static void uart1_event_task(void *pvParameters)
 {
@@ -182,29 +116,19 @@ static void uart1_event_task(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-static void task2(void *pvParameters){
-	struct TRAMA RX;
-	  	  for(;;) {
-	  		xQueueReceive(Cola,&RX,portMAX_DELAY);
-	  		uart_write_bytes(UART_NUM_1, (const char*)RX.dato, RX.size);
-
-	  	  	  }
-	    vTaskDelete(NULL);
-}
-
 static void task3(void *pvParameters){
 	struct TRAMA RX;
 	  	  for(;;) {
 	  		xQueueReceive(Cola1,&RX,portMAX_DELAY);
 	  		uart_write_bytes(UART_NUM_0, (const char*)RX.dato, RX.size);
-
 	  	  	  }
 	    vTaskDelete(NULL);
 }
 
 static void  Tiempo_Espera(char* aux, uint8_t estado, uint16_t* tamano, portTickType tiempo)
 {
-
+	//Esta funcion se encarga de esperar el tiempo necesario para cada comando
+	// Creo que se le puede anadir en el else la parte de los errores
 	struct TRAMA buf;
     if(xQueueReceive(Datos_uart1, &buf, (portTickType) tiempo / portTICK_PERIOD_MS)) {
         memcpy(aux,buf.dato,BUF_SIZE);
@@ -216,6 +140,25 @@ static void  Tiempo_Espera(char* aux, uint8_t estado, uint16_t* tamano, portTick
     }
 }
 
+static void  Prender_SIM800l()
+{
+
+	gpio_set_level(SIM800l_PWR, 1);
+	gpio_set_level(SIM800l_RST, 1);
+	gpio_set_level(SIM800l_PWR_KEY, 1);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	gpio_set_level(SIM800l_PWR_KEY, 0);
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	gpio_set_level(SIM800l_PWR_KEY, 1);
+
+
+	vTaskDelay(10000 / portTICK_PERIOD_MS);
+	ESP_LOGW("TAG","Ya espere 10");
+}
+
+
+
+
 static void At_com(void *pvParameters){
 
 	int b = 0;
@@ -225,9 +168,15 @@ static void At_com(void *pvParameters){
 	uint16_t size = 0;
 	e_ATCOM ATCOM = 0;
 	e_TEspera T_Espera;
+	//uint16_t flags_errores[11] = {0};
+	uint8_t flags_errores = 0;
+	uint8_t flags2_errores = 0;
+
 
 
 	while(1){
+
+		Prender_SIM800l();
 
         while (b == 0){
 
@@ -236,14 +185,21 @@ static void At_com(void *pvParameters){
                 // Se activan las funcionalidades
                 ESP_LOGW(TAG,"Mandara CFUN");
                 uart_write_bytes(UART_NUM_1,"AT+CFUN=1\r\n", 11);
-                ESP_LOGW(TAG, "CFUN activo \r\n");
+                //Con este delay se evitan errores despues
+                //Por alguna razon la primera vez que se envia este comando nunca recibe la
+                //respuesta correcta
                 vTaskDelay(500 / portTICK_PERIOD_MS);
                 Tiempo_Espera(aux, ATCOM,&size,t_CFUN);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
+                	flags_errores = 0;
                 }else if(strncmp(aux,"\r\nCME ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
                 	ESP_LOGE(TAG,"1- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -252,15 +208,19 @@ static void At_com(void *pvParameters){
                 //Para conectarse a la red de Movistar
                 ESP_LOGW(TAG,"Mando CSTT");
                 uart_write_bytes(UART_NUM_1,"AT+CSTT=\"internet.movistar.ve\",\"\",\"\"\r\n", 39);
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
                 ESP_LOGW(TAG, "Conectandose a movistar \r\n");
                 Tiempo_Espera(aux, ATCOM,&size,t_CSST);
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
+                	flags_errores = 0;
                 	vTaskDelay(10000 / portTICK_PERIOD_MS);
                 } else if(strncmp(aux,"\r\nERROR",7) == 0 ){
                 	ESP_LOGE(TAG,"2- Dio error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -274,9 +234,14 @@ static void At_com(void *pvParameters){
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
+                	flags_errores = 0;
                 	vTaskDelay(3000 / portTICK_PERIOD_MS);
                 }else if(strncmp(aux,"\r\n+PDP: DEACT",7) == 0 || strncmp(aux,"\r\nERROR",7) == 0 ){
                 	ESP_LOGE(TAG,"3- Dio error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -289,8 +254,13 @@ static void At_com(void *pvParameters){
                 if(strncmp(aux,"\r\n+CGREG: 0,1",13) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
+                	flags_errores = 0;
                 }else if(strncmp(aux,"\r\nCME ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
                 	ESP_LOGE(TAG,"4- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -303,8 +273,13 @@ static void At_com(void *pvParameters){
                 if(strncmp(aux,"\r\nOK",4) == 0){
                 	ATCOM++;
                     ESP_LOGW(TAG,"Aumentando ATCOM");
+                    flags_errores = 0;
                 }else if(strncmp(aux,"\r\nERROR",7) == 0){
                 	ESP_LOGE(TAG,"5- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -314,13 +289,17 @@ static void At_com(void *pvParameters){
  		    	uart_write_bytes(UART_NUM_1,"AT+CIFSR\r\n", 10);
  		        ESP_LOGW(TAG, "Pidiendo IP \r\n");
  		        Tiempo_Espera(aux, ATCOM,&size,t_CIFSR);
- 		        char* ip = strstr(aux,'.');
- 		        printf("ip es %s \r\n",ip);
- 		        if (strncmp(ip,"NULL",4) != 0){
+ 		        char* ip = strstr(aux,".");
+ 		        if (ip == NULL || strncmp(aux,"\r\nERROR",7) == 0){
+ 		        	ESP_LOGE(TAG,"6- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
+                }else{
  			        ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
-                }else if(strncmp(aux,"\r\nERROR",7) == 0){
-                	ESP_LOGE(TAG,"6- Dio Error");
+                	flags_errores = 0;
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -333,6 +312,13 @@ static void At_com(void *pvParameters){
                 if(strncmp(aux,"\r\n+CPAS: 0",10) == 0){
                 	ATCOM++;
                 	ESP_LOGW(TAG,"Aumentando ATCOM");
+                	flags_errores = 0;
+                }else if(strncmp(aux,"\r\nERROR",7) == 0){
+                	ESP_LOGE(TAG,"7- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
@@ -348,7 +334,14 @@ static void At_com(void *pvParameters){
                     uart_write_bytes(UART_NUM_1,(const char*)finalSMSComand, 2);
                     ATCOM++;
                     ESP_LOGW(TAG,"Aumentando ATCOM");
-                 }
+                    flags_errores = 0;
+                }else if(strncmp(aux,"\r\nCMS ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
+                	ESP_LOGE(TAG,"8- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
+                }
                 bzero(aux, BUF_SIZE);
                 size = 0;
         	break;
@@ -359,22 +352,55 @@ static void At_com(void *pvParameters){
                 if(strncmp(aux,"\r\n+CMGS:",8) == 0){
                 		ATCOM++;
                      	ESP_LOGW(TAG,"Aumentando ATCOM");
-                 }
+                     	flags_errores = 0;
+                }else if(strncmp(aux,"\r\nCMS ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
+                	ESP_LOGE(TAG,"9- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
+                }
                 bzero(aux, BUF_SIZE);
                 size = 0;
             break;
+        	case CPOWD:
+        		//Para apagar el sim800l
+                ESP_LOGW(TAG, "Apagar \r\n");
+                uart_write_bytes(UART_NUM_1,"AT+CPOWD=1\r\n", 12);
+                Tiempo_Espera(aux, ATCOM,&size,t_CPOWD);
+                if(strncmp(aux,"\r\nNORMAL POWER DOWN",19) == 0){
+                	//Aqui lo estoy poniendo a regresarse al principio, aunque se queda ahi
+                	//porque apague el modulo
+                	ATCOM = CFUN;
+                	ESP_LOGW(TAG,"Se apago el modulo SIM800L");
+                	flags_errores = 0;
+                }else {
+                	ESP_LOGE(TAG,"10- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		flags2_errores = 1;
+                 		flags_errores = 0;
+                	}
+                }
+                bzero(aux, BUF_SIZE);
+                size = 0;
+
+        	break;
         	}
 
         	ESP_LOGW(TAG,"Final del while");
         	vTaskDelay(1000 / portTICK_PERIOD_MS);
+        	//verificacion por si dio error en el envio del apagado
+        	//Esto puede ser usado tambien en otros casos para salir del ciclo
+        	if ( flags2_errores == 1){
+        		flags2_errores = 0;
+        		break;
+        	}
 
 
         }
 
         ESP_LOGW(TAG,"SALI DEL WHILEEEE");
-
-
-
 	}
 
 }
@@ -385,10 +411,9 @@ static void At_com(void *pvParameters){
 void app_main(void)
 {
 
-	Cola= xQueueCreate(1, sizeof(struct TRAMA));
 	Cola1= xQueueCreate(1, sizeof(struct TRAMA));
 	Datos_uart1 = xQueueCreate(1, sizeof(struct TRAMA));
-	uart_event_t event_uart1;
+
 
 
 
@@ -408,7 +433,7 @@ void app_main(void)
     uart_driver_install(UART_NUM_1, BUF_SIZE, BUF_SIZE, 20, &uart1_queue, 0);
     uart_param_config(UART_NUM_1, &uart_config);
     //Install UART driver, and get the queue.
-    uart_driver_install(EX_UART_NUM, BUF_SIZE, BUF_SIZE, 20, &uart0_queue, 0);
+    uart_driver_install(EX_UART_NUM, BUF_SIZE, BUF_SIZE, 20, NULL, 0);
     uart_param_config(EX_UART_NUM, &uart_config);
 
     //Install UART driver, and get the queue.
@@ -422,23 +447,10 @@ void app_main(void)
     //Set UART pins (using UART1 default pins ie no changes.)
     uart_set_pin(UART_NUM_1, TX1, RX1, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-    //Set uart pattern detect function.
-   // uart_enable_pattern_det_baud_intr(EX_UART_NUM, '+', PATTERN_CHR_NUM, 9, 0, 0);
-    //Reset the pattern queue length to record at most 20 pattern positions.
-  //  uart_pattern_queue_reset(EX_UART_NUM, 20);
-
-    //Create a task to handler UART event from ISR
-   // xTaskCreate(task_test, "tarea de prueba", 3*1024, NULL, 2, &xTask2Handle);
-    xTaskCreate(task2, "tarea de prueba", 4*1024, NULL, 2, NULL);
    xTaskCreate(task3, "tarea 3 de prueba", 4*1024, NULL, 2, NULL);
-    xTaskCreate(uart_event_task, "uart_event_task", 10*2048, NULL, 1, NULL);
-    xTaskCreate(uart1_event_task, "uart1_event_task", 10*2048, NULL, 1, NULL);
+   xTaskCreate(uart1_event_task, "uart1_event_task", 10*2048, NULL, 1, NULL);
 
-    //Cola para interrupcion
- //   xQueue1 = xQueueCreate(1, sizeof(int));
-    gpio_pad_select_gpio(GPIO_NUM_13);
-    gpio_set_direction(GPIO_NUM_13, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_13, 0);
+
 
 
 
@@ -452,29 +464,8 @@ void app_main(void)
     	gpio_set_direction(SIM800l_PWR, GPIO_MODE_OUTPUT);
     	gpio_set_direction(SIM800l_RST, GPIO_MODE_OUTPUT_OD);
 
-        gpio_set_level(SIM800l_PWR, 1);
-        gpio_set_level(SIM800l_RST, 1);
-        gpio_set_level(SIM800l_PWR_KEY, 1);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        gpio_set_level(SIM800l_PWR_KEY, 0);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        gpio_set_level(SIM800l_PWR_KEY, 1);
 
-
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
-        ESP_LOGW("TAG","Ya espere 10");
         xTaskCreatePinnedToCore(&At_com, "Comandos AT", 1024*4, NULL, 5, NULL,1);
-
-
-   /*	 timer_config(TIMER_0, WITH_RELOAD, TIMER_INTERVAL0_SEC);
-
-   	 timer_start(TIMER_GROUP_0, TIMER_0);
-
-   	 xQueueReceive(xQueue1,&b,portMAX_DELAY);*/
-
-
-
-
 
 // Responde 0A 45 52 52 4F 52 0D 0D - 0A 1B 5B 30 6D 0D 0A 1B que es \rERROR\r
 
@@ -485,22 +476,7 @@ void app_main(void)
 
         //Respuesta a CMGS
         // 3A 20 61 75 78 20 65 73 3A 20 0D 0D 0A 3E 20 1B
-/*
-        uart_write_bytes(UART_NUM_1,"AT+CMGS=\"+584242428865\"\r\n", 25);
-        ESP_LOGW(TAG, "Mensaje1 \r\n");
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-        sprintf(message,"Esta es una prueba \r\n");
-        uart_write_bytes(UART_NUM_1,message, 21);
-        uart_write_bytes(UART_NUM_1,(const char*)finalSMSComand, 2);
-        ESP_LOGW(TAG, "Mensaje2 \r\n");
 
-        ESP_LOGI(TAG, "Mande los mensajessssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss \r\n");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);*/
-
-        // Apagar
-    /*	uart_write_bytes(UART_NUM_1,"AT+CPOWD=1\r\n", 12);
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
-        ESP_LOGW(TAG, "Apagado \r\n");*/
 
 }
 
