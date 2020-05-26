@@ -6,7 +6,9 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
+
 #include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
@@ -97,7 +99,7 @@ void app_main(void)
        functions.)
     */
 	e_TEspera espera;
-
+	 char aux[318] = "";
 	printf("%d \r\n",t_CFUN);
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 	printf("%d \r\n",t_CSST);
@@ -108,35 +110,31 @@ void app_main(void)
 	printf("%d \r\n",t_CIICR);
 
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
-	char aux[318] = "";
+
 	xQueue = xQueueCreate(1, sizeof(aux));
 	a = 2;
 	printf("%d \r\n",a );
 
 	portTickType b = 5000;
-	 event_group = xEventGroupCreate();
+	event_group = xEventGroupCreate();
 
 
 // xTaskCreatePinnedToCore(&Retraso1, "Retraso1", 1024, NULL, 8, NULL,0);
-
-      char* ip = strstr(aux,'.');
-      sprintf(aux,"Hola");
-      printf("ip es %s \r\n",ip);
-      sprintf(aux,"Hola1");
-      if (strncmp(ip,"NULL",4) != 0){
+	printf("Oracion\r\n");
+	 sprintf(aux,"Esta es una oracion muy corta");
+	 printf("punto\r\n");
+	 char* punto = ".";
+	 printf("str\r\n");
+	  char* ip = strstr(aux,punto);
+      if (ip == NULL){
     	  printf("Entre al if \r\n");
      }
 
 
 	 printf("%d \r\n",a );
 //	 xEventGroupSetBits(event_group, BEGIN_TASK1);
-	 printf("Aca 0\r\n" );
-	 Prueba(aux,t_CPAS);
-	 printf("Aca 1\r\n" );
 	 vTaskDelay(4000 / portTICK_PERIOD_MS);
-	 printf("Aca 2 \r\n");
-	 xQueueOverwrite(xQueue,&aux);
-	 printf("Aca 3 \r\n");
+
 
 
 
