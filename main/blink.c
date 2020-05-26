@@ -72,6 +72,9 @@ typedef enum
 	CPAS,
 	CMGS1,
 	CMGS,
+	CIPSTART,
+	CIPSTART2,
+	CIPSEND,
 	CPOWD,
 } e_ATCOM;
 
@@ -85,6 +88,8 @@ typedef enum {
     t_CIFSR = 5000,
     t_CPAS = 5000,
     t_CMGS = 60000,
+	t_CIPSTART = 162000,
+	t_CIPSEND = 647000,
     t_CPOWD = 5000,
 } e_TEspera;
 
@@ -363,6 +368,69 @@ static void At_com(void *pvParameters){
                 bzero(aux, BUF_SIZE);
                 size = 0;
             break;
+        	case CIPSTART:
+        		//Para inciar la comunicacion con thingspeak
+                ESP_LOGW(TAG, "Thinkspeak 1\r\n");
+                uart_write_bytes(UART_NUM_1,"AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",80\r\n", 43);
+                Tiempo_Espera(aux, ATCOM,&size,t_CIPSTART);
+                if(strncmp(aux,"\r\nCONNECT OK",12) == 0 ||
+                		strncmp(aux,"\r\nALREADY CONNECTED",7) == 0 ||
+						strncmp(aux,"\r\nOK",4) == 0){
+                	ATCOM++;
+                	ESP_LOGW(TAG,"Aumentando ATCOM");
+                	flags_errores = 0;
+                }else if(strncmp(aux,"\r\nERROR",7) == 0){
+                	ESP_LOGE(TAG,"%d- Dio Error",ATCOM+1);
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
+                }
+                bzero(aux, BUF_SIZE);
+                size = 0;
+
+        	break;
+        	case CIPSTART2:
+        		//Para esperar el connect ok
+                ESP_LOGW(TAG, "Connect ok \r\n");
+                Tiempo_Espera(aux, ATCOM,&size,t_CIPSTART);
+                if(strncmp(aux,"\r\nCONNECT OK",12) == 0 ||
+                		strncmp(aux,"\r\nALREADY CONNECTED",7) == 0){
+                		ATCOM++;
+                     	ESP_LOGW(TAG,"Aumentando ATCOM");
+                     	flags_errores = 0;
+                }else if(strncmp(aux,"\r\nCMS ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
+                	ESP_LOGE(TAG,"9- Dio Error");
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
+                }
+                bzero(aux, BUF_SIZE);
+                size = 0;
+        	break;
+        	case CIPSEND:
+        		//Para inciar la comunicacion con thingspeak
+                ESP_LOGW(TAG, "CIPSEND\r\n");
+                uart_write_bytes(UART_NUM_1,"AT+CIPSEND=73\r\n", 15);
+                Tiempo_Espera(aux, ATCOM,&size,t_CIPSTART);
+                if(strncmp(aux,"\r\n>",3) == 0){
+                	sprintf(message,"GET https://api.thingspeak.com/update?api_key=OK8QVTGTM9OS8YI4&field2=440");
+                    uart_write_bytes(UART_NUM_1,message, 73);
+                    ATCOM++;
+                    ESP_LOGW(TAG,"Aumentando ATCOM");
+                    flags_errores = 0;
+                    vTaskDelay(300000 / portTICK_PERIOD_MS);
+                }else if(strncmp(aux,"\r\nCMS ERROR:",12) == 0 || strncmp(aux,"\r\nERROR",7) == 0){
+                	ESP_LOGE(TAG,"%d- Dio Error",ATCOM+1);
+                	flags_errores++;
+                	if (flags_errores >= 3){
+                		ATCOM = CPOWD;
+                	}
+                }
+                bzero(aux, BUF_SIZE);
+                size = 0;
+        	break;
         	case CPOWD:
         		//Para apagar el sim800l
                 ESP_LOGW(TAG, "Apagar \r\n");
@@ -375,7 +443,7 @@ static void At_com(void *pvParameters){
                 	ESP_LOGW(TAG,"Se apago el modulo SIM800L");
                 	flags_errores = 0;
                 }else {
-                	ESP_LOGE(TAG,"10- Dio Error");
+                	ESP_LOGE(TAG,"%d- Dio Error",ATCOM+1);
                 	flags_errores++;
                 	if (flags_errores >= 3){
                 		flags2_errores = 1;
