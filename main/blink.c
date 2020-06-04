@@ -168,7 +168,7 @@ static void  Prender_SIM800l()
 static void At_com(void *pvParameters){
 
 	int b = 0;
-	char message[318] = "Welcome to ESP32!";
+	char message[86] = "Welcome to ESP32!";
 	const char* finalSMSComand = "\x1A";
 	char aux[BUF_SIZE] = "";
 	uint16_t size = 0;
@@ -177,6 +177,7 @@ static void At_com(void *pvParameters){
 	//uint16_t flags_errores[11] = {0};
 	uint8_t flags_errores = 0;
 	uint8_t flags2_errores = 0;
+	uint8_t dato = 128;
 
 
 
@@ -413,12 +414,14 @@ static void At_com(void *pvParameters){
         	case CIPSEND:
         		//Para mandar datos a thingspeak
                 ESP_LOGW(TAG, "CIPSEND\r\n");
-                uart_write_bytes(UART_NUM_1,"AT+CIPSEND=83\r\n", 15);
+                uart_write_bytes(UART_NUM_1,"AT+CIPSEND=85\r\n", 15);
                 Tiempo_Espera(aux, ATCOM,&size,t_CIPSEND);
+                vTaskDelay(300 / portTICK_PERIOD_MS);
                 if(strncmp(aux,"\r\n>",3) == 0){
-       //         	sprintf(message,"GET https://api.thingspeak.com/update?api_key=OK8QVTGTM9OS8YI4&field2=440");
-                	sprintf(message,"POST https://api.thingspeak.com/update\n     api_key=OK8QVTGTM9OS8YI4\n     field1=440");
-                	uart_write_bytes(UART_NUM_1,message, 83);
+                	//sprintf(message,"GET https://api.thingspeak.com/update?api_key=OK8QVTGTM9OS8YI4&field2=%d\r\n",dato);
+                	sprintf(message,"POST https://api.thingspeak.com/update\n     api_key=OK8QVTGTM9OS8YI4\n     field1=200\n");
+                	//	uart_write_bytes(UART_NUM_1,message,75);
+                	uart_write_bytes(UART_NUM_1,message,85);
                     ATCOM++;
                     ESP_LOGW(TAG,"Aumentando ATCOM");
                     flags_errores = 0;
@@ -451,15 +454,17 @@ static void At_com(void *pvParameters){
                 bzero(aux, BUF_SIZE);
                 size = 0;
         	break;
-
         	case CPOWD:
         		//Para apagar el sim800l
                 ESP_LOGW(TAG, "Apagar \r\n");
-                uart_write_bytes(UART_NUM_1,"AT+CPOWD=1\r\n", 12);
+                ATCOM = CIPSTART;
+                dato++;
+            	vTaskDelay(70000 / portTICK_PERIOD_MS);
+ /*               uart_write_bytes(UART_NUM_1,"AT+CPOWD=1\r\n", 12);
                 Tiempo_Espera(aux, ATCOM,&size,t_CPOWD);
                 if(strncmp(aux,"\r\nNORMAL POWER DOWN",19) == 0){
-                	//Aqui lo estoy poniendo a regresarse al principio, aunque se queda ahi
-                	//porque apague el modulo
+                	Aqui lo estoy poniendo a regresarse al principio, aunque se queda ahi
+                	porque apague el modulo
                 	ATCOM = CFUN;
                 	ESP_LOGW(TAG,"Se apago el modulo SIM800L");
                 	flags_errores = 0;
@@ -473,7 +478,7 @@ static void At_com(void *pvParameters){
                 }
                 bzero(aux, BUF_SIZE);
                 size = 0;
-
+*/
         	break;
         	}
 
