@@ -168,7 +168,7 @@ static void  Prender_SIM800l()
 static void At_com(void *pvParameters){
 
 	int b = 0;
-	char message[86] = "Welcome to ESP32!";
+	char message[81] = "Welcome to ESP32!";
 	const char* finalSMSComand = "\x1A";
 	char aux[BUF_SIZE] = "";
 	uint16_t size = 0;
@@ -177,7 +177,7 @@ static void At_com(void *pvParameters){
 	//uint16_t flags_errores[11] = {0};
 	uint8_t flags_errores = 0;
 	uint8_t flags2_errores = 0;
-	uint8_t dato = 128;
+	float dato = 501.12456;
 
 
 
@@ -414,14 +414,15 @@ static void At_com(void *pvParameters){
         	case CIPSEND:
         		//Para mandar datos a thingspeak
                 ESP_LOGW(TAG, "CIPSEND\r\n");
-                uart_write_bytes(UART_NUM_1,"AT+CIPSEND=85\r\n", 15);
+                uart_write_bytes(UART_NUM_1,"AT+CIPSEND=80\r\n", 15);
                 Tiempo_Espera(aux, ATCOM,&size,t_CIPSEND);
                 vTaskDelay(300 / portTICK_PERIOD_MS);
                 if(strncmp(aux,"\r\n>",3) == 0){
-                	//sprintf(message,"GET https://api.thingspeak.com/update?api_key=OK8QVTGTM9OS8YI4&field2=%d\r\n",dato);
-                	sprintf(message,"POST https://api.thingspeak.com/update\n     api_key=OK8QVTGTM9OS8YI4\n     field1=200\n");
-                	//	uart_write_bytes(UART_NUM_1,message,75);
-                	uart_write_bytes(UART_NUM_1,message,85);
+                	//para la temperatura y humedad con lenght de 75
+                //	sprintf(message,"GET https://api.thingspeak.com/update?api_key=OK8QVTGTM9OS8YI4&field2=%d\r\n",(uint8_t) dato);
+                	//Para la longitud y latitud con lenght de 80
+                	sprintf(message,"GET https://api.thingspeak.com/update?api_key=OK8QVTGTM9OS8YI4&field2=%.4f\r\n",dato);
+                	uart_write_bytes(UART_NUM_1,message,80);
                     ATCOM++;
                     ESP_LOGW(TAG,"Aumentando ATCOM");
                     flags_errores = 0;
