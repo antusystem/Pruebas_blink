@@ -134,6 +134,7 @@ void app_main(void)
 	 printf("%d \r\n",a );
 //	 xEventGroupSetBits(event_group, BEGIN_TASK1);
 	 vTaskDelay(4000 / portTICK_PERIOD_MS);
+	 vTaskDelay(4000 / portTICK_PERIOD_MS);
 
 
 
